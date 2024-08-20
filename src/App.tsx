@@ -8,6 +8,7 @@ import './App.css';
  */
 interface IState {
   data: ServerRespond[],
+  showGraph: boolean, // Add this to control visibility of the graph
 }
 
 /**
@@ -19,14 +20,34 @@ class App extends Component<{}, IState> {
     super(props);
 
     this.state = {
-      // data saves the server responds.
-      // We use this state to parse data down to the child element (Graph) as element property
       data: [],
+      showGraph: false, // Initialize graph as hidden
     };
   }
 
   /**
-   * Render Graph react component with state.data parse as property data
+   * Aggregate existing data and update the state with unique data
+   */
+  aggregateData(data: ServerRespond[]): ServerRespond[] {
+    const aggregatedMap = new Map<string, ServerRespond>();
+
+    data.forEach((item) => {
+      const key = `${item.stock}-${item.timestamp}`;
+      if (!aggregatedMap.has(key)) {
+        aggregatedMap.set(key, item);
+      } else {
+        // Aggregate existing entry
+        const existing = aggregatedMap.get(key)!;
+        existing.top_ask.price = (existing.top_ask.price + item.top_ask.price) / 2;
+        existing.top_bid.price = (existing.top_bid.price + item.top_bid.price) / 2;
+      }
+    });
+
+    return Array.from(aggregatedMap.values());
+  }
+
+  /**
+   * Render Graph react component with state.data parsed as property data
    */
   renderGraph() {
     return (<Graph data={this.state.data}/>)
@@ -37,10 +58,20 @@ class App extends Component<{}, IState> {
    */
   getDataFromServer() {
     DataStreamer.getData((serverResponds: ServerRespond[]) => {
-      // Update the state by creating a new array of data that consists of
-      // Previous data in the state and the new data from server
-      this.setState({ data: [...this.state.data, ...serverResponds] });
+      // Aggregate data to remove duplicates and update state
+      const aggregatedData = this.aggregateData(serverResponds);
+      this.setState({ data: [...this.state.data, ...aggregatedData] });
     });
+  }
+
+  /**
+   * Start streaming data at regular intervals
+   */
+  startStreaming() {
+    this.setState({ showGraph: true });
+    this.getDataFromServer(); // Initial data fetch
+    // Fetch new data every 100ms
+    setInterval(() => this.getDataFromServer(), 100);
   }
 
   /**
@@ -54,16 +85,11 @@ class App extends Component<{}, IState> {
         </header>
         <div className="App-content">
           <button className="btn btn-primary Stream-button"
-            // when button is click, our react app tries to request
-            // new data from the server.
-            // As part of your task, update the getDataFromServer() function
-            // to keep requesting the data every 100ms until the app is closed
-            // or the server does not return anymore data.
-            onClick={() => {this.getDataFromServer()}}>
+            onClick={() => this.startStreaming()}>
             Start Streaming Data
           </button>
           <div className="Graph">
-            {this.renderGraph()}
+            {this.state.showGraph && this.renderGraph()}
           </div>
         </div>
       </div>

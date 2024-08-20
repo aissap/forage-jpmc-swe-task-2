@@ -1,6 +1,6 @@
 export interface Order {
-  price: Number,
-  size: Number,
+  price: number,
+  size: number,
 }
 /**
  * The datafeed server returns an array of ServerRespond with 2 stocks.
